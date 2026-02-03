@@ -5,6 +5,7 @@ from operator import eq
 from string import Template
 from argparse import ArgumentParser
 from pathlib import Path
+from itertools import chain
 
 from rosidl_generator_cpp import msg_type_to_cpp
 from rosidl_runtime_py.utilities import get_namespaced_type
@@ -78,7 +79,7 @@ TEMPLATE_FIELDS_LOAD = Template('value.${field} = src.attr("${field}").cast<${fi
 TEMPLATE_FIELDS_CAST = Template('msg.attr("${field}") = pybind11::cast(cpp_msg.${field});')
 
 
-def resolve_types(msg_typename: str) -> List[NamespacedType]:
+def resolve_types(msg_typenames: List[str]) -> List[NamespacedType]:
     def _resolve_types(type_: AbstractNestableType) -> List[NamespacedType]:
         if isinstance(type_, NamespacedType):
             # pkg/msg/Message types
@@ -89,7 +90,7 @@ def resolve_types(msg_typename: str) -> List[NamespacedType]:
             return []
 
     # Recursively search for namespaced types
-    resolved_types = _resolve_types(get_namespaced_type(msg_typename))
+    resolved_types = chain.from_iterable(_resolve_types(get_namespaced_type(type_)) for type_ in msg_typenames)
 
     # After the recursive type search, there are a lot of duplicates
     # (and set is not supported so doing it by hand)
@@ -139,10 +140,10 @@ def gen_caster_file(types: List[NamespacedType]) -> str:
 def main():
     parser = ArgumentParser('Generates a header file casting ROS interfaces '
                             'from python to c++ and back using pybind11')
-    parser.add_argument('MSGTYPE', help='Namespaced ROS interface type '
-                                        '(e.g. "nav_msgs/msg/Odometry"')
+    parser.add_argument('MSGTYPES', nargs="+", help='Namespaced ROS interface types '
+                                        '(e.g. "nav_msgs/msg/Odometry")')
     args = parser.parse_args()
-    types = resolve_types(args.MSGTYPE)
+    types = resolve_types(args.MSGTYPES)
     print(gen_caster_file(types))
 
 
